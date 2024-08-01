@@ -27,7 +27,6 @@ char *file_list[MAX_FILES];
 CSVFile csv_files[MAX_FILES];
 int successful_reads = 0;
 
-// Función para leer archivos CSV y almacenar el contenido en memoria
 void read_csv(const char *filename, CSVFile *csv_file) {
     struct timespec start_time, end_time;
 
@@ -58,15 +57,18 @@ void read_csv(const char *filename, CSVFile *csv_file) {
     // Obtener el tiempo de finalización
     clock_gettime(CLOCK_MONOTONIC, &end_time);
 
+
     // Calcular y mostrar el tiempo de ejecución
     double elapsed_time = time_diff(start_time, end_time);
     printf("Tiempo de ejecución para leer %s: %.2f ms\n", filename, elapsed_time);
 }
 
 // Función para mostrar la afinidad de la CPU de un proceso
+
 void show_cpu_affinity(pid_t pid) {
+    /*
     cpu_set_t cpuset;
-    //CPU_ZERO(&cpuset);
+    CPU_ZERO(&cpuset);
 
     if (sched_getaffinity(pid, sizeof(cpu_set_t), &cpuset) == -1) {
         perror("sched_getaffinity");
@@ -80,7 +82,9 @@ void show_cpu_affinity(pid_t pid) {
         }
     }
     printf("\n");
+    */
 }
+
 
 // Procesamiento secuencial de archivos
 void process_files_sequentially() {
@@ -131,18 +135,16 @@ void process_files_parallel() {
     }
 }
 
-// Procesamiento multi-core de archivos usando fork
+// Procesamiento multi-core de archivos usando fork con afinidad a núcleos específicos
 void process_files_multi_core() {
     pid_t pids[MAX_FILES];
     cpu_set_t cpuset;
-    CPU_ZERO(&cpuset);
-    for (int cpu = 0; cpu < CPU_SETSIZE; cpu++) {
-        CPU_SET(cpu, &cpuset); // Permitir el uso de todos los núcleos
-    }
 
     for (int i = 0; i < total_files; i++) {
         if ((pids[i] = fork()) == 0) {
-            // Proceso hijo: establecer afinidad y mostrarla
+            // Proceso hijo: establecer afinidad a un núcleo específico y mostrarla
+            CPU_ZERO(&cpuset);
+            CPU_SET(i % CPU_SETSIZE, &cpuset); // Asignar el núcleo de forma cíclica
             if (sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset) == -1) {
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
@@ -165,7 +167,10 @@ void process_files_multi_core() {
 // Función para calcular la diferencia de tiempo en milisegundos
 double time_diff(struct timespec start, struct timespec end) {
     double start_ms = start.tv_sec * 1000.0 + start.tv_nsec / 1000000.0;
+    printf("Inicio: %f \n", start_ms);
     double end_ms = end.tv_sec * 1000.0 + end.tv_nsec / 1000000.0;
+    printf("Final: %f \n", end_ms);
+    printf("Tiempo total: %f \n",(end_ms-start_ms));
     return end_ms - start_ms;
 }
 
@@ -277,4 +282,6 @@ int main(int argc, char *argv[]) {
     printf("Código de salida: %d\n", successful_reads == total_files ? 0 : 1);
     return successful_reads == total_files ? 0 : 1;
 }
+
+
 
