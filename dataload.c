@@ -20,6 +20,8 @@ typedef struct {
     int line_count;
 } CSVFile;
 
+double time_diff(struct timespec start, struct timespec end);
+
 int total_files = 0;
 char *file_list[MAX_FILES];
 CSVFile csv_files[MAX_FILES];
@@ -27,11 +29,17 @@ int successful_reads = 0;
 
 // Función para leer archivos CSV y almacenar el contenido en memoria
 void read_csv(const char *filename, CSVFile *csv_file) {
+    struct timespec start_time, end_time;
+
+    // Obtener el tiempo de inicio
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+
     FILE *file = fopen(filename, "r");
     if (file == NULL) {
         fprintf(stderr, "Error al abrir el archivo %s\n", filename);
         exit(EXIT_FAILURE);
     }
+
     // Asignar memoria para las líneas del archivo
     csv_file->lines = malloc(MAX_LINES * sizeof(char *));
     csv_file->line_count = 0;
@@ -46,6 +54,13 @@ void read_csv(const char *filename, CSVFile *csv_file) {
 
     // Indicar que la lectura fue exitosa
     successful_reads++;
+
+    // Obtener el tiempo de finalización
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+    // Calcular y mostrar el tiempo de ejecución
+    double elapsed_time = time_diff(start_time, end_time);
+    printf("Tiempo de ejecución para leer %s: %.2f ms\n", filename, elapsed_time);
 }
 
 // Función para mostrar la afinidad de la CPU de un proceso
@@ -69,8 +84,21 @@ void show_cpu_affinity(pid_t pid) {
 
 // Procesamiento secuencial de archivos
 void process_files_sequentially() {
+    // Establecer afinidad del proceso principal al núcleo 0
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(0, &cpuset); // Establecer afinidad al núcleo 0
+    if (sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset) == -1) {
+        perror("sched_setaffinity");
+        exit(EXIT_FAILURE);
+    }
+    //show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
+
     for (int i = 0; i < total_files; i++) {
         read_csv(file_list[i], &csv_files[i]);
+        show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
+
+
     }
 }
 
@@ -235,7 +263,7 @@ int main(int argc, char *argv[]) {
     printf("Hora de carga del último archivo: %ld.%09ld\n", end_time.tv_sec, end_time.tv_nsec);
     printf("Tiempo total de procesamiento: %.2f ms\n", time_diff(start_time, end_time));
 
-    show_cpu_usage();
+    //show_cpu_usage();
     // Liberar la memoria asignada
     for (int i = 0; i < total_files; i++) {
         for (int j = 0; j < csv_files[i].line_count; j++) {
@@ -249,3 +277,4 @@ int main(int argc, char *argv[]) {
     printf("Código de salida: %d\n", successful_reads == total_files ? 0 : 1);
     return successful_reads == total_files ? 0 : 1;
 }
+
