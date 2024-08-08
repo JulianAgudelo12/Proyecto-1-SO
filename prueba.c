@@ -122,7 +122,7 @@ int main(){
     double interval;
 
     //Se estaablece el numero de nucleos
-    omp_set_num_threads(1); 
+    omp_set_num_threads(8); 
 
     clock_gettime(CLOCK_MONOTONIC, &start);
 
