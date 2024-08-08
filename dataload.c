@@ -66,7 +66,6 @@ void read_csv(const char *filename, CSVFile *csv_file) {
 // Función para mostrar la afinidad de la CPU de un proceso
 
 void show_cpu_affinity(pid_t pid) {
-    /*
     cpu_set_t cpuset;
     CPU_ZERO(&cpuset);
 
@@ -82,7 +81,6 @@ void show_cpu_affinity(pid_t pid) {
         }
     }
     printf("\n");
-    */
 }
 
 
@@ -101,8 +99,6 @@ void process_files_sequentially() {
     for (int i = 0; i < total_files; i++) {
         read_csv(file_list[i], &csv_files[i]);
         show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
-
-
     }
 }
 
@@ -139,12 +135,13 @@ void process_files_parallel() {
 void process_files_multi_core() {
     pid_t pids[MAX_FILES];
     cpu_set_t cpuset;
+    int p_number = sysconf(_SC_NPROCESSORS_ONLN);
 
     for (int i = 0; i < total_files; i++) {
         if ((pids[i] = fork()) == 0) {
             // Proceso hijo: establecer afinidad a un núcleo específico y mostrarla
             CPU_ZERO(&cpuset);
-            CPU_SET(i % CPU_SETSIZE, &cpuset); // Asignar el núcleo de forma cíclica
+            CPU_SET(i % p_number, &cpuset); // Asignar el núcleo de forma cíclica
             if (sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset) == -1) {
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
@@ -282,6 +279,5 @@ int main(int argc, char *argv[]) {
     printf("Código de salida: %d\n", successful_reads == total_files ? 0 : 1);
     return successful_reads == total_files ? 0 : 1;
 }
-
 
 
