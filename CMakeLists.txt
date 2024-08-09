@@ -4,4 +4,8 @@ project(Code C)
 set(CMAKE_C_STANDARD 11)
 
 add_executable(Code
-        dataload.c)
+        dataload.c
+        timeline.h
+        timeline.h
+        timeline.h
+        timeline.c)
