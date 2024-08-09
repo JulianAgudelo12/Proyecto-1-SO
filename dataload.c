@@ -9,11 +9,15 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <sched.h>
-#include <sys/resource.h> // Para getrusage
+#include <sys/mman.h>
+#include <sys/resource.h>
+#include "timeline.h"
+
 
 #define MAX_FILES 100
-#define MAX_LINES 2000
-#define MAX_LINE_LENGTH 256
+#define MAX_LINES 3000
+#define MAX_LINE_LENGTH 512
+
 
 typedef struct {
     char **lines;
@@ -26,6 +30,8 @@ int total_files = 0;
 char *file_list[MAX_FILES];
 CSVFile csv_files[MAX_FILES];
 int successful_reads = 0;
+struct timespec (*process_times)[2];
+int *position_pt;
 
 void read_csv(const char *filename, CSVFile *csv_file) {
     struct timespec start_time, end_time;
@@ -56,7 +62,11 @@ void read_csv(const char *filename, CSVFile *csv_file) {
 
     // Obtener el tiempo de finalización
     clock_gettime(CLOCK_MONOTONIC, &end_time);
+    // Creación de array para almacenamiento
+    process_times[*position_pt][0] = start_time;
+    process_times[*position_pt][1] = end_time;
 
+    (*position_pt)++;
 
     // Calcular y mostrar el tiempo de ejecución
     double elapsed_time = time_diff(start_time, end_time);
@@ -164,10 +174,7 @@ void process_files_multi_core() {
 // Función para calcular la diferencia de tiempo en milisegundos
 double time_diff(struct timespec start, struct timespec end) {
     double start_ms = start.tv_sec * 1000.0 + start.tv_nsec / 1000000.0;
-    printf("Inicio: %f \n", start_ms);
     double end_ms = end.tv_sec * 1000.0 + end.tv_nsec / 1000000.0;
-    printf("Final: %f \n", end_ms);
-    printf("Tiempo total: %f \n",(end_ms-start_ms));
     return end_ms - start_ms;
 }
 
@@ -244,6 +251,17 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // Allocate shared memory for process_times and position_pt
+    process_times = mmap(NULL, sizeof(struct timespec) * 11 * 2, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    position_pt = mmap(NULL, sizeof(int), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+    if (process_times == MAP_FAILED || position_pt == MAP_FAILED) {
+        perror("mmap");
+        exit(EXIT_FAILURE);
+    }
+
+    *position_pt = 0; // Initialize position_pt
+
     struct timespec start_time, end_time;
     clock_gettime(CLOCK_MONOTONIC, &start_time);
     printf("Hora de inicio del programa: %ld.%09ld\n", start_time.tv_sec, start_time.tv_nsec);
@@ -265,6 +283,8 @@ int main(int argc, char *argv[]) {
     printf("Hora de carga del último archivo: %ld.%09ld\n", end_time.tv_sec, end_time.tv_nsec);
     printf("Tiempo total de procesamiento: %.2f ms\n", time_diff(start_time, end_time));
 
+    print_timeline(start_time, end_time, process_times);
+
     //show_cpu_usage();
     // Liberar la memoria asignada
     for (int i = 0; i < total_files; i++) {
@@ -274,6 +294,10 @@ int main(int argc, char *argv[]) {
         free(csv_files[i].lines);
         free(file_list[i]);
     }
+
+    // Unmap the shared memory
+    munmap(process_times, sizeof(struct timespec) * 11 * 2);
+    munmap(position_pt, sizeof(int));
 
     // Imprimir el código de salida
     printf("Código de salida: %d\n", successful_reads == total_files ? 0 : 1);
