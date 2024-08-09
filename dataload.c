@@ -15,7 +15,7 @@
 
 
 #define MAX_FILES 100
-#define MAX_LINES 3000
+#define MAX_LINES 200000
 #define MAX_LINE_LENGTH 512
 
 
@@ -32,6 +32,7 @@ CSVFile csv_files[MAX_FILES];
 int successful_reads = 0;
 struct timespec (*process_times)[2];
 int *position_pt;
+int *active_cores;
 
 void read_csv(const char *filename, CSVFile *csv_file) {
     struct timespec start_time, end_time;
@@ -45,7 +46,7 @@ void read_csv(const char *filename, CSVFile *csv_file) {
         exit(EXIT_FAILURE);
     }
 
-    // Asignar memoria para las líneas del archivo
+    // Asignar memoria para |las líneas del archivo
     csv_file->lines = malloc(MAX_LINES * sizeof(char *));
     csv_file->line_count = 0;
 
@@ -67,6 +68,13 @@ void read_csv(const char *filename, CSVFile *csv_file) {
     process_times[*position_pt][1] = end_time;
 
     (*position_pt)++;
+
+    //Limpieza de la memoria
+    for (int i = 0; i < csv_file->line_count; i++) {
+        free(csv_file->lines[i]);
+    }
+
+    free(csv_file->lines);
 
     // Calcular y mostrar el tiempo de ejecución
     double elapsed_time = time_diff(start_time, end_time);
@@ -104,7 +112,7 @@ void process_files_sequentially() {
         perror("sched_setaffinity");
         exit(EXIT_FAILURE);
     }
-    //show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
+    show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
 
     for (int i = 0; i < total_files; i++) {
         read_csv(file_list[i], &csv_files[i]);
@@ -288,10 +296,6 @@ int main(int argc, char *argv[]) {
     //show_cpu_usage();
     // Liberar la memoria asignada
     for (int i = 0; i < total_files; i++) {
-        for (int j = 0; j < csv_files[i].line_count; j++) {
-            free(csv_files[i].lines[j]);
-        }
-        free(csv_files[i].lines);
         free(file_list[i]);
     }
 

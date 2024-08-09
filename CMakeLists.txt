@@ -8,4 +8,5 @@ add_executable(Code
         timeline.h
         timeline.h
         timeline.h
-        timeline.c)
+        timeline.c
+        programa.c)
