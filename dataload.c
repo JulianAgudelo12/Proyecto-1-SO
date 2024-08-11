@@ -12,6 +12,8 @@
 #include <sys/mman.h>
 #include <sys/resource.h>
 #include "timeline.h"
+#include <semaphore.h>
+#include <aio.h>
 
 
 #define MAX_FILES 100
@@ -32,11 +34,45 @@ CSVFile csv_files[MAX_FILES];
 int successful_reads = 0;
 struct timespec (*process_times)[2];
 int *position_pt;
-int *active_cores;
+
+void print_process_information(){
+    //print_scheduler()
+    //show_cpu_usage
+}
+
+void print_scheduler(int policy)
+{
+    switch (policy) {
+        case SCHED_OTHER:
+            printf("Scheduling policy is SCHED_OTHER (default)\n");
+            break;
+        case SCHED_FIFO:
+            printf("Scheduling policy is SCHED_FIFO (first-in, first-out)\n");
+            break;
+        case SCHED_RR:
+            printf("Scheduling policy is SCHED_RR (round-robin)\n");
+            break;
+        case SCHED_BATCH:
+            printf("Scheduling policy is SCHED_BATCH (for batch processes)\n");
+            break;
+        case SCHED_IDLE:
+            printf("Scheduling policy is SCHED_IDLE (for very low priority background tasks)\n");
+            break;
+        case SCHED_DEADLINE:
+            printf("Scheduling policy is SCHED_DEADLINE (real-time tasks with deadlines)\n");
+            break;
+        default:
+            printf("Unknown scheduling policy\n");
+    }
+}
+
+void read_csv_asynchronous()
+{
+    struct aiocb control_block;
+}
 
 void read_csv(const char *filename, CSVFile *csv_file) {
     struct timespec start_time, end_time;
-
     // Obtener el tiempo de inicio
     clock_gettime(CLOCK_MONOTONIC, &start_time);
 
@@ -46,7 +82,7 @@ void read_csv(const char *filename, CSVFile *csv_file) {
         exit(EXIT_FAILURE);
     }
 
-    // Asignar memoria para |las líneas del archivo
+    // Asignar memoria para las líneas del archivo
     csv_file->lines = malloc(MAX_LINES * sizeof(char *));
     csv_file->line_count = 0;
 
@@ -154,29 +190,45 @@ void process_files_multi_core() {
     pid_t pids[MAX_FILES];
     cpu_set_t cpuset;
     int p_number = sysconf(_SC_NPROCESSORS_ONLN);
+    struct sched_param param;
+    param.sched_priority = 50;
 
     for (int i = 0; i < total_files; i++) {
+
         if ((pids[i] = fork()) == 0) {
-            // Proceso hijo: establecer afinidad a un núcleo específico y mostrarla
             CPU_ZERO(&cpuset);
-            CPU_SET(i % p_number, &cpuset); // Asignar el núcleo de forma cíclica
+            CPU_SET(i % p_number, &cpuset); // Assign the core cyclically
             if (sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset) == -1) {
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
             }
-            show_cpu_affinity(getpid()); // Mostrar afinidad del proceso hijo
+            /*
+            if(sched_setscheduler(getpid(), SCHED_FIFO, &param) == -1)
+            {
+                perror("sched_setscheduler failed");
+            }
+            else{
+                printf("Process %d set to SCHED_FIFO with priority %d\n", getpid(), param.sched_priority);
+            }
+             */
+
+            //int policy = sched_getscheduler(getpid());
+            //print_scheduler(policy);
+            show_cpu_affinity(getpid()); // Show affinity of the child process
             read_csv(file_list[i], &csv_files[i]);
-            exit(0); // Asegurarse de que el proceso hijo termine después de procesar
+            _exit(EXIT_SUCCESS);
         } else if (pids[i] > 0) {
-            // Proceso padre: continuar
+            // Parent process: Continue
         } else {
             perror("fork");
             exit(EXIT_FAILURE);
         }
     }
+
     for (int i = 0; i < total_files; i++) {
         waitpid(pids[i], NULL, 0);
     }
+
 }
 
 // Función para calcular la diferencia de tiempo en milisegundos
@@ -291,7 +343,7 @@ int main(int argc, char *argv[]) {
     printf("Hora de carga del último archivo: %ld.%09ld\n", end_time.tv_sec, end_time.tv_nsec);
     printf("Tiempo total de procesamiento: %.2f ms\n", time_diff(start_time, end_time));
 
-    print_timeline(start_time, end_time, process_times);
+    print_timeline(start_time, end_time, process_times, total_files);
 
     //show_cpu_usage();
     // Liberar la memoria asignada
