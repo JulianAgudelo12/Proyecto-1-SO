@@ -4,8 +4,6 @@
 #include <stdio.h>
 
 #define TIME_SLICES 70
-#define files_amount 10
 
-void print_timeline(struct timespec start, struct timespec end, struct timespec times[files_amount][2]);
-
+void print_timeline(struct timespec start, struct timespec end, struct timespec times[][2], int files_amount);
 #endif
