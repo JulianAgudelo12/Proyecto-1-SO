@@ -202,7 +202,7 @@ void process_files_multi_core() {
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
             }
-            /*
+
             if(sched_setscheduler(getpid(), SCHED_FIFO, &param) == -1)
             {
                 perror("sched_setscheduler failed");
@@ -210,7 +210,6 @@ void process_files_multi_core() {
             else{
                 printf("Process %d set to SCHED_FIFO with priority %d\n", getpid(), param.sched_priority);
             }
-             */
 
             //int policy = sched_getscheduler(getpid());
             //print_scheduler(policy);
