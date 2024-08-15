@@ -7,7 +7,10 @@ double time_diff(struct timespec start, struct timespec end) {
 }
 
 void read_csv(const char *filename, CSVFile *csv_file) {
+    struct rusage usage_start, usage_end;
     struct timespec start_time, end_time;
+
+    getrusage(RUSAGE_SELF, &usage_start);
     // Obtener el tiempo de inicio
     clock_gettime(CLOCK_MONOTONIC, &start_time);
 
@@ -21,54 +24,105 @@ void read_csv(const char *filename, CSVFile *csv_file) {
     csv_file->lines = malloc(MAX_LINES * sizeof(char *));
     csv_file->line_count = 0;
 
+    if (csv_file->lines == NULL) {
+        fprintf(stderr, "Error allocating memory for csv_file->lines\n");
+        exit(EXIT_FAILURE);
+    }
+
     // Leer y almacenar cada línea del archivo
     char line[MAX_LINE_LENGTH];
     while (fgets(line, sizeof(line), file)) {
         csv_file->lines[csv_file->line_count] = strdup(line);
         csv_file->line_count++;
     }
+
+    getrusage(RUSAGE_SELF, &usage_end);
     fclose(file);
 
     // Indicar que la lectura fue exitosa
-
     successful_reads++;
 
     // Obtener el tiempo de finalización
     clock_gettime(CLOCK_MONOTONIC, &end_time);
+
     // Creación de array para almacenamiento
     process_times[*position_pt][0] = start_time;
     process_times[*position_pt][1] = end_time;
-
     (*position_pt)++;
 
-    //Limpieza de la memoria
+    // Limpieza de la memoria
     for (int i = 0; i < csv_file->line_count; i++) {
         free(csv_file->lines[i]);
     }
-
     free(csv_file->lines);
 
-    // Calcular y mostrar el tiempo de ejecución
+    // Calcular y mostrar el tiempo de ejecución total
     double elapsed_time = time_diff(start_time, end_time);
-    printf("Tiempo de ejecución para leer %s: %.2f ms\n", filename, elapsed_time);
+    printf("Tiempo de ejecución para leer %s: %f ms -------------------------------------------------------------------------------------------\n", filename, elapsed_time);
+
+
+    // Calcular el tiempo de usuario y sistema utilizados
+    double user_time_used = ((usage_end.ru_utime.tv_sec - usage_start.ru_utime.tv_sec) +
+                             (usage_end.ru_utime.tv_usec - usage_start.ru_utime.tv_usec) / 1e6) * 1000;
+
+    double sys_time_used = ((usage_end.ru_stime.tv_sec - usage_start.ru_stime.tv_sec) +
+                            (usage_end.ru_stime.tv_usec - usage_start.ru_stime.tv_usec) / 1e6) * 1000;
+
+    printf("Tiempo de CPU (usuario): %f ms\n", user_time_used);
+    printf("Tiempo de CPU (sistema): %f ms\n", sys_time_used);
+
+
+    // Imprimir información adicional
+    printf("Maximum Resident Set Size: %ld KB\n", usage_end.ru_maxrss);
+    printf("Page faults (soft): %ld\n", usage_end.ru_minflt);
+    printf("Page faults (hard): %ld\n", usage_end.ru_majflt);
+    printf("I/O input operations: %ld\n", usage_end.ru_inblock);
+    printf("I/O output operations: %ld\n", usage_end.ru_oublock);
+    printf("Swaps: %ld\n", usage_end.ru_nswap);
 }
 
-void process_files_sequentially(char* file_list[MAX_FILES], CSVFile csv_files[MAX_FILES]) {
-    // Establecer afinidad del proceso principal al núcleo 0
+
+void process_files_sequentially(char* file_list[MAX_FILES], CSVFile csv_files[MAX_FILES])
+{
+    struct sched_param param;
+    param.sched_priority = 50;
+    // Creamos la lista de PIDs en función de la cantidad de procesos (Un proceso por cada archivo)
+    pid_t pid;
+    // Creación de la representación de las CPUs
     cpu_set_t cpuset;
+    // Limpieza en caso de alguna fuga de memoria
     CPU_ZERO(&cpuset);
-    CPU_SET(0, &cpuset); // Establecer afinidad al núcleo 0
-    if (sched_setaffinity(getpid(), sizeof(cpu_set_t), &cpuset) == -1) {
-        perror("sched_setaffinity");
-        exit(EXIT_FAILURE);
-    }
-    show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
+    // Establecemos la afinidad a un solo núcleo
+    CPU_SET(1, &cpuset);
 
     for (int i = 0; i < total_files; i++) {
-        read_csv(file_list[i], &csv_files[i]);
-        show_cpu_affinity(getpid()); // Mostrar afinidad del proceso principal
+        //Si el resultado de esta operación es 0, entonces es un proceso hijo, es decir, usable.
+        if((pid = fork()) == 0){
+            if(sched_setaffinity(getpid(),sizeof(cpu_set_t), &cpuset) == -1){
+                perror("sched_setaffinity");
+                exit(EXIT_FAILURE);
+            }
+            //show_cpu_affinity(getpid());
+
+            if((sched_setscheduler(getpid(),SCHED_FIFO, &param)) == -1){
+                perror("sched_setscheduler");
+            }
+            read_csv(file_list[i], &csv_files[i]);
+            exit(0);
+        }
+        else if(pid > 0)
+        {
+            // Wait for the child process to complete before continuing
+            waitpid(pid, NULL, 0);
+        }
+        else
+        {
+            perror("fork");
+            exit(EXIT_FAILURE);
+        }
     }
 }
+
 
 // Procesamiento paralelo de archivos usando fork con afinidad a un solo núcleo
 void process_files_parallel(char* file_list[MAX_FILES], CSVFile csv_files[MAX_FILES]) {
@@ -84,7 +138,7 @@ void process_files_parallel(char* file_list[MAX_FILES], CSVFile csv_files[MAX_FI
                 perror("sched_setaffinity");
                 exit(EXIT_FAILURE);
             }
-            show_cpu_affinity(getpid()); // Mostrar afinidad del proceso hijo
+            //show_cpu_affinity(getpid()); // Mostrar afinidad del proceso hijo
             read_csv(file_list[i], &csv_files[i]);
             exit(0); // Asegurarse de que el proceso hijo termine después de procesar
         } else if (pids[i] > 0) {
@@ -119,10 +173,7 @@ void process_files_multi_core(char* file_list[MAX_FILES], CSVFile csv_files[MAX_
 
             if(sched_setscheduler(getpid(), SCHED_FIFO, &param) == -1)
             {
-                perror("sched_setscheduler failed");
-            }
-            else{
-                printf("Process %d set to SCHED_FIFO with priority %d\n", getpid(), param.sched_priority);
+                perror("sched_setscheduler falló");
             }
 
             //int policy = sched_getscheduler(getpid());
