@@ -6,6 +6,17 @@ double time_diff(struct timespec start, struct timespec end) {
     return end_ms - start_ms;
 }
 
+void print_table_header() {
+    printf("+---------------------------+-----------------------------+\n");
+    printf("| Metric                    | Value                       |\n");
+    printf("+---------------------------+-----------------------------+\n");
+}
+
+void print_table_row(const char* metric, const char* value) {
+    printf("| %-25s | %-27s |\n", metric, value);
+    printf("+---------------------------+-----------------------------+\n");
+}
+
 void read_csv(const char *filename, CSVFile *csv_file) {
     struct rusage usage_start, usage_end;
     struct timespec start_time, end_time;
@@ -58,7 +69,7 @@ void read_csv(const char *filename, CSVFile *csv_file) {
 
     // Calcular y mostrar el tiempo de ejecución total
     double elapsed_time = time_diff(start_time, end_time);
-    printf("Tiempo de ejecución para leer %s: %f ms -------------------------------------------------------------------------------------------\n", filename, elapsed_time);
+    printf("Tiempo de ejecución para leer %s: %f ms ------------------------------------------------------------------------------------------\n", filename, elapsed_time);
 
 
     // Calcular el tiempo de usuario y sistema utilizados
@@ -176,7 +187,7 @@ void process_files_multi_core(char* file_list[MAX_FILES], CSVFile csv_files[MAX_
                 perror("sched_setscheduler falló");
             }
 
-            //int policy = sched_getscheduler(getpid());
+            //int policy = sched_getscheduler(getpid());x
             //print_scheduler(policy);
             show_cpu_affinity(getpid()); // Show affinity of the child process
             read_csv(file_list[i], &csv_files[i]);

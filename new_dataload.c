@@ -133,7 +133,11 @@ int main(int argc, char *argv[]) {
     printf("Hora de inicio del programa: %ld.%09ld\n", start_time.tv_sec, start_time.tv_nsec);
     printf("Hora de inicio de la carga del primer archivo: %ld.%09ld\n", process_times[0][0].tv_sec, process_times[0][0].tv_nsec);
     printf("Hora de finalización de la carga del último archivo: %ld.%09ld\n", end_time.tv_sec, end_time.tv_nsec);
-    print_timeline(start_time, end_time, process_times, total_files);
+    if(simulation_number == 0)
+    {
+        print_timeline(start_time, end_time, process_times, total_files);
+
+    }
     printf("Tiempo total de procesamiento: %02ld:%02ld\n", (end_time.tv_sec - start_time.tv_sec) / 60, (end_time.tv_sec - start_time.tv_sec) % 60);
 
 
@@ -141,7 +145,10 @@ int main(int argc, char *argv[]) {
     munmap(process_times, sizeof(struct timespec) * 11 * 2);
     munmap(position_pt, sizeof(int));
 
-    // Imprimir el código de salida
-    printf("Código de salida: %d\n", successful_reads == total_files ? 0 : 1);
+    long total_time_ms = (end_time.tv_sec - start_time.tv_sec) * 1000 +
+                         (end_time.tv_nsec - start_time.tv_nsec) / 1000000;
+
+    printf("Tiempo total de procesamiento: %ld ms\n", total_time_ms);
+
     return successful_reads == total_files ? 0 : 1;
 }

@@ -73,6 +73,7 @@ void simulate_cases(int number_of_simulations, char* file_list[MAX_FILES], CSVFi
 
     for(int k = 0; k < number_of_simulations; k++)
     {
+        clear_cache();
         (*f)(file_list, csv_files);
 
         for(int j = 0; j < total_files; j++)
