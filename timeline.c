@@ -25,7 +25,6 @@ void print_timeline(struct timespec start, struct timespec end, struct timespec 
     }
 
     printf("Tamaño del Segmento : %i ms\n", slice);
-    printf("\n");
 
     for(int k = 0; k < files_amount; k++) {
         printf("Proceso %i ", k);

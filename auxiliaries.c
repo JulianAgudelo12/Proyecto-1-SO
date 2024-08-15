@@ -1,5 +1,15 @@
 #include "auxiliaries.h"
 
+void clear_cache() {
+    int result = system("sudo sh -c \"echo 3 > /proc/sys/vm/drop_caches\"");
+
+    if (result == -1) {
+        perror("Error executing the system command");
+    } else {
+        printf("Cache cleared successfully.\n");
+    }
+}
+
 void print_scheduler(int policy)
 {
     switch (policy) {

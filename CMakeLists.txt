@@ -9,4 +9,12 @@ add_executable(Code
         timeline.h
         timeline.h
         timeline.c
-        programa.c)
+        programa.c
+        statistics.c
+        statistics.h
+        essentials.c
+        essentials.h
+        auxiliaries.c
+        auxiliaries.h
+        new_dataload.c
+        constants.h)
