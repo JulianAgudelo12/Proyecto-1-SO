@@ -25,7 +25,7 @@ Este proyecto implementa diferentes algoritmos de paralelismo en C para evaluar 
 - **Sistema Operativo:** Linux o Windows
 - **Herramientas Adicionales:**
     - Canva (para la presentación)
-    - Herramientas de monitoreo del sistema (por ejemplo, `htop` en Linux)
+    - Herramientas de monitoreo del sistema (por ejemplo, `htop` en Linux, el `administrador` de tareas en Windows)
 
 ## Instalación
 
