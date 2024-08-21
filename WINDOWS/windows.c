@@ -187,11 +187,12 @@ int sequential(char *path, int fileCount){
         
             if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
                 fprintf(stderr, "CreateProcess failed (%d).\n", GetLastError());
+            } else {
+                printf("Hilo %d, Proceso creado: %s, PID: %lu\n", omp_get_thread_num(), files[i], pi.dwProcessId);
             }
 
             // Espera a que el proceso hijo termine antes de continuar
             WaitForSingleObject(pi.hProcess, INFINITE);
-            printf("Hilo %d, El arcivo: %s se guardo\n\n", omp_get_thread_num(), files[i]);
 
             CloseHandle(pi.hProcess);
             CloseHandle(pi.hThread);
@@ -206,12 +207,7 @@ int sequential(char *path, int fileCount){
 // Leemos los archivos en paralelo
 int parallel(char *path, int fileCount){
 
-   //Configuramos la Memoria para crear los procesos   
-    STARTUPINFO si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    ZeroMemory(&pi, sizeof(pi));
+    // Creamos una lista de Handles
     HANDLE *handles = malloc(fileCount * sizeof(HANDLE));
     
     //Se estaablece el numero de nucleos
@@ -224,19 +220,23 @@ int parallel(char *path, int fileCount){
 
         #pragma omp parallel for
         for (int i = 0; i < fileCount; i++) {
-            printf("Procesando archivo: %s\n", files[i]);
+            //Configuramos la Memoria para crear los procesos   
+            STARTUPINFO si;
+            PROCESS_INFORMATION pi;
+            ZeroMemory(&si, sizeof(si));
+            si.cb = sizeof(si);
+            ZeroMemory(&pi, sizeof(pi));
 
             //Creamos la ruta completa
             char cmdLine[256];
-            sprintf(cmdLine, "./read_windows2 -f %s",files[i]);
+            sprintf(cmdLine, "./read_windows -f %s",files[i]);
         
             if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
                 fprintf(stderr, "CreateProcess failed (%d).\n", GetLastError());
             } else {
+                printf("Hilo %d, Proceso creado: %s, PID: %lu\n", omp_get_thread_num(), files[i], pi.dwProcessId);
                 handles[i] = pi.hProcess;  
             }
-
-            printf("Hilo %d, El arcivo: %s se guardo\n", omp_get_thread_num(), files[i]);
 
             free(files[i]);
         }
@@ -244,7 +244,8 @@ int parallel(char *path, int fileCount){
         WaitForMultipleObjects(fileCount, handles, TRUE, INFINITE);
 
         free(files);
-    }    
+
+    }
     return 0;
 }
 
@@ -252,11 +253,23 @@ int parallel(char *path, int fileCount){
 int multi_core(char *path, int fileCount){
      
     //Configuramos la Memoria para crear los procesos   
-    STARTUPINFO si;
-    PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
-    si.cb = sizeof(si);
-    ZeroMemory(&pi, sizeof(pi));
+    STARTUPINFO *siArray = malloc(fileCount * sizeof(STARTUPINFO));
+    if (!siArray) {
+        fprintf(stderr, "Failed to allocate memory for STARTUPINFO array.\n");
+        return 1;
+    }
+    PROCESS_INFORMATION *piArray = malloc(fileCount * sizeof(PROCESS_INFORMATION));
+    if (!piArray) {
+        fprintf(stderr, "Failed to allocate memory for PROCESS_INFORMATION array.\n");
+        return 1;
+    }
+
+    // Inicializar las estructuras de STARTUPINFO y PROCESS_INFORMATION
+    for (int i = 0; i < fileCount; i++) {
+        ZeroMemory(&siArray[i], sizeof(STARTUPINFO));
+        siArray[i].cb = sizeof(STARTUPINFO);
+        ZeroMemory(&piArray[i], sizeof(PROCESS_INFORMATION));
+    }
 
     //Iniciaamos las variables para el contador
     struct timespec start, end;
@@ -279,23 +292,25 @@ int multi_core(char *path, int fileCount){
 
             //Creamos la ruta completa
             char cmdLine[256];
-            sprintf(cmdLine, "./read_windows2 -f %s",files[i]);
-        
-            if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+            sprintf(cmdLine, "./read_windows -f %s",files[i]);
+
+            //Creamos el proceso 
+            if (!CreateProcess(NULL, cmdLine, NULL, NULL, FALSE, 0, NULL, NULL, &siArray[i], &piArray[i])) {
                 fprintf(stderr, "CreateProcess failed (%d).\n", GetLastError());
+            } else {
+                printf("Hilo %d, Proceso creado: %s, PID: %lu\n", omp_get_thread_num(), files[i], piArray[i].dwProcessId);
             }
 
-            // Espera a que el proceso hijo termine antes de continuar
-            printf("Hilo %d, El arcivo: %s se guardo\n", omp_get_thread_num(), files[i]);
-
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-
-
-            //leemos el archivo 
-            //read_csv(fullPath);
-            free(files[i]);
+            //free(files[i]);
         }
+
+        // Esperar que todos los procesos terminen (opcional)
+        for (int i = 0; i < fileCount; i++) {
+            WaitForSingleObject(piArray[i].hProcess, INFINITE);
+            CloseHandle(piArray[i].hProcess);
+            CloseHandle(piArray[i].hThread);
+        }
+
         free(files);
     }    
     return 0;
@@ -304,7 +319,7 @@ int multi_core(char *path, int fileCount){
 //Metodo principal
 int main(int argc, char *argv[]){
 
-    char *path = "C:\\Users\\agude\\OneDrive - Universidad EAFIT\\Universidad\\Semestre #6\\Sistemas Operativos\\Proyecto #1\\Archivos\\*";
+    char *path = "../Archivos/*";
     int fileCount = 0;
 
     //Iniciaamos las variables para el contador
