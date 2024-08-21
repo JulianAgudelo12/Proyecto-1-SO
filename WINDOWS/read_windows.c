@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
 
     //Creamos la ruta completa
     char fullPath[256];
-    sprintf(fullPath, "Archivos/%s",filename);
+    sprintf(fullPath, "../Archivos/%s",filename);
 
     read_csv(fullPath);
     return 0;
